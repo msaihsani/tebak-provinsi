@@ -19,7 +19,7 @@ const height = 600;
 
 const svg = d3.select("svg");
 const projection = d3.geoMercator()
-    .scale(1000)
+    .fitSize([width, height], provinces);
     .translate([width / 2, height / 2]);
 
 const path = d3.geoPath().projection(projection);
