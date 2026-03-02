@@ -1,105 +1,259 @@
 <!DOCTYPE html>
-<html>
+<html lang="id">
 <head>
-<meta charset="utf-8">
-<title>Tebak Provinsi</title>
+    <meta charset="utf-8">
+    <title>Tebak Provinsi Gacor</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://unpkg.com/topojson-client@3"></script>
+    <style>
+        :root {
+            --bg-color: #1a1a2e;
+            --card-bg: #16213e;
+            --accent-color: #00d2ff;
+            --correct-color: #4dfdcb;
+            --wrong-color: #e94560;
+            --text-color: #ffffff;
+        }
 
-<script src="https://d3js.org/d3.v7.min.js"></script>
-<script src="https://unpkg.com/topojson-client@3"></script>
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
 
-<style>
-body {
-  font-family: Arial;
-  text-align: center;
-}
+        .container {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            border: 1px solid rgba(255,255,255,0.1);
+            position: relative;
+        }
 
-svg {
-  border: 1px solid #ccc;
-}
-</style>
+        h2 {
+            margin-top: 0;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--accent-color);
+        }
 
+        #soal {
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+            min-height: 36px;
+        }
+
+        .stats {
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+
+        svg {
+            background: #0f3460;
+            border-radius: 15px;
+            cursor: crosshair;
+        }
+
+        path {
+            transition: fill 0.2s, stroke 0.2s;
+        }
+
+        path:hover {
+            stroke: var(--accent-color) !important;
+            stroke-width: 2px !important;
+            filter: brightness(1.2);
+        }
+
+        /* Notifikasi Melayang */
+        #notification {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 20px 40px;
+            border-radius: 50px;
+            font-size: 2rem;
+            font-weight: bold;
+            pointer-events: none;
+            opacity: 0;
+            z-index: 10;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .show-notif {
+            opacity: 1 !important;
+            transform: translate(-50%, -70%) scale(1.2) !important;
+        }
+
+        /* Bubble Efek */
+        .bubble-text {
+            position: absolute;
+            color: var(--correct-color);
+            font-weight: bold;
+            pointer-events: none;
+            animation: moveUp 1s ease-out forwards;
+            font-size: 1.2rem;
+            text-shadow: 0 0 10px rgba(0,0,0,0.5);
+        }
+
+        @keyframes moveUp {
+            0% { transform: translateY(0); opacity: 1; }
+            100% { transform: translateY(-50px); opacity: 0; }
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 10px;
+            background: #0f3460;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            overflow: hidden;
+        }
+
+        #progress-inner {
+            height: 100%;
+            width: 0%;
+            background: var(--accent-color);
+            transition: width 0.5s ease;
+            box-shadow: 0 0 10px var(--accent-color);
+        }
+    </style>
 </head>
 <body>
 
-<h2>Tebak Provinsi Indonesia</h2>
-<p id="soal">Loading...</p>
+    <div class="container">
+        <h2>TEBAK PROVINSI</h2>
+        
+        <div class="progress-bar">
+            <div id="progress-inner"></div>
+        </div>
 
-<svg width="900" height="600"></svg>
+        <p id="soal">Menyiapkan Peta...</p>
+        <div class="stats" id="stats">Progres: 0 / 38</div>
+
+        <div style="position: relative;">
+            <svg width="900" height="500"></svg>
+            <div id="notification"></div>
+        </div>
+    </div>
 
 <script>
 const width = 900;
-const height = 600;
+const height = 500;
 const svg = d3.select("svg");
+const soalEl = document.getElementById("soal");
+const statsEl = document.getElementById("stats");
+const progressEl = document.getElementById("progress-inner");
+const notifEl = document.getElementById("notification");
 
 d3.json("indonesia-38-provinces.topo.json")
 .then(function(data){
 
-  const objectName = Object.keys(data.objects)[0];
-  const geojson = topojson.feature(data, data.objects[objectName]);
-  const provinces = geojson.features;
+    const objectName = Object.keys(data.objects)[0];
+    const geojson = topojson.feature(data, data.objects[objectName]);
+    const provinces = geojson.features;
 
-  const projection = d3.geoMercator()
-      .fitSize([width, height], geojson);
+    const projection = d3.geoMercator().fitSize([width, height], geojson);
+    const path = d3.geoPath().projection(projection);
 
-  const path = d3.geoPath().projection(projection);
+    let sisaProvinsi = [...provinces];
+    let currentProv = null;
+    let totalProv = provinces.length;
 
-  let sisaProvinsi = [...provinces];   // daftar yg belum dijawab
-  let currentProv = null;
+    function updateUI() {
+        const count = totalProv - sisaProvinsi.length;
+        statsEl.innerText = `Progres: ${count} / ${totalProv}`;
+        progressEl.style.width = (count / totalProv * 100) + "%";
+    }
 
-  function ambilSoalBaru(){
-      if(sisaProvinsi.length === 0){
-          document.getElementById("soal").innerText = 
-              "🎉 Semua provinsi selesai!";
-          return;
-      }
+    function showFeedback(text, color) {
+        notifEl.innerText = text;
+        notifEl.style.backgroundColor = color;
+        notifEl.classList.add("show-notif");
+        
+        setTimeout(() => {
+            notifEl.classList.remove("show-notif");
+        }, 800);
+    }
 
-      const randomIndex = Math.floor(Math.random() * sisaProvinsi.length);
-      currentProv = sisaProvinsi[randomIndex];
+    function createBubble(x, y, text) {
+        const bubble = document.createElement("div");
+        bubble.className = "bubble-text";
+        bubble.innerText = text;
+        bubble.style.left = x + "px";
+        bubble.style.top = y + "px";
+        document.querySelector(".container").appendChild(bubble);
+        setTimeout(() => bubble.remove(), 1000);
+    }
 
-      document.getElementById("soal").innerText =
-          "Klik provinsi: " + currentProv.properties.PROVINSI;
-  }
-
-  function resetGame(){
-      sisaProvinsi = [...provinces];
-      svg.selectAll("path").attr("fill", "#dcdcdc");
-      ambilSoalBaru();
-  }
-
-  svg.selectAll("path")
-    .data(provinces)
-    .enter()
-    .append("path")
-    .attr("d", path)
-    .attr("fill", "#dcdcdc")
-    .attr("stroke", "#333")
-    .on("click", function(event, d){
-
-        if(!currentProv) return;
-
-        if(d.properties.PROVINSI === currentProv.properties.PROVINSI){
-
-            d3.select(this).attr("fill", "green");
-
-            // hapus dari daftar soal
-            sisaProvinsi = sisaProvinsi.filter(p =>
-                p.properties.PROVINSI !== currentProv.properties.PROVINSI
-            );
-
-            ambilSoalBaru();
-
-        } else {
-            alert("Salah 😅 Ulang dari awal!");
-            resetGame();
+    function ambilSoalBaru(){
+        updateUI();
+        if(sisaProvinsi.length === 0){
+            soalEl.innerHTML = "🎉 <span style='color: #4dfdcb'>MISI SELESAI! SEMUA PROVINSI DITEMUKAN!</span>";
+            return;
         }
 
-    });
+        const randomIndex = Math.floor(Math.random() * sisaProvinsi.length);
+        currentProv = sisaProvinsi[randomIndex];
+        soalEl.innerHTML = `Mana yang <span style="color: var(--accent-color)">${currentProv.properties.PROVINSI}</span>?`;
+    }
 
-  ambilSoalBaru();
+    function resetGame(){
+        sisaProvinsi = [...provinces];
+        svg.selectAll("path")
+           .transition().duration(500)
+           .attr("fill", "#2a3a5a");
+        ambilSoalBaru();
+    }
+
+    svg.selectAll("path")
+        .data(provinces)
+        .enter()
+        .append("path")
+        .attr("d", path)
+        .attr("fill", "#2a3a5a")
+        .attr("stroke", "#1a1a2e")
+        .attr("stroke-width", "0.5")
+        .on("click", function(event, d){
+            if(!currentProv) return;
+
+            const [mouseX, mouseY] = d3.pointer(event, document.querySelector(".container"));
+
+            if(d.properties.PROVINSI === currentProv.properties.PROVINSI){
+                // BENAR
+                d3.select(this)
+                  .transition().duration(300)
+                  .attr("fill", "var(--correct-color)");
+
+                createBubble(mouseX, mouseY, "MANTAP! ✨");
+                
+                sisaProvinsi = sisaProvinsi.filter(p => 
+                    p.properties.PROVINSI !== currentProv.properties.PROVINSI
+                );
+
+                ambilSoalBaru();
+            } else {
+                // SALAH
+                showFeedback("SALAH! 💀", "var(--wrong-color)");
+                resetGame();
+            }
+        });
+
+    ambilSoalBaru();
 
 })
-.catch(function(error){
-  console.error("ERROR JSON:", error);
+.catch(error => {
+    soalEl.innerText = "Gagal memuat peta. Pastikan file JSON ada.";
+    console.error(error);
 });
 </script>
 
