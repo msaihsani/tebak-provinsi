@@ -2,7 +2,7 @@
 <html lang="id">
 <head>
     <meta charset="utf-8">
-    <title>Tebak Provinsi Gacor v2</title>
+    <title>Tebak Provinsi Gacor v3</title>
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <script src="https://unpkg.com/topojson-client@3"></script>
     <style>
@@ -11,8 +11,8 @@
             --card-bg: #16213e;
             --accent-color: #00d2ff;
             --correct-color: #4dfdcb;
-            --wrong-color: #e94560;
-            --base-prov-color: #445577; /* Warna lebih terang agar tidak gelap */
+            --wrong-color: #ff4d4d;
+            --base-prov-color: #445577;
             --text-color: #ffffff;
         }
 
@@ -35,15 +35,33 @@
             box-shadow: 0 10px 40px rgba(0,0,0,0.6);
             text-align: center;
             width: 950px;
+            position: relative;
         }
 
         #soal {
             font-size: 1.8rem;
             margin: 15px 0;
-            min-height: 45px;
+            min-height: 80px; /* Ditinggikan sedikit agar muat 2 baris teks */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            transition: color 0.3s;
         }
 
-        /* Tombol Restart Gacor */
+        .text-wrong {
+            color: var(--wrong-color) !important;
+            animation: shake 0.5s;
+        }
+
+        @keyframes shake {
+            0% { transform: translateX(0); }
+            25% { transform: translateX(-10px); }
+            50% { transform: translateX(10px); }
+            75% { transform: translateX(-10px); }
+            100% { transform: translateX(0); }
+        }
+
         .btn-restart {
             background: var(--accent-color);
             color: var(--bg-color);
@@ -65,10 +83,9 @@
         svg {
             background: #0f3460;
             border-radius: 15px;
-            margin-top: 20px;
+            margin-top: 10px;
         }
 
-        /* State Provinsi */
         path {
             cursor: pointer;
             transition: fill 0.3s;
@@ -81,8 +98,8 @@
         }
 
         path.answered {
-            cursor: default; /* Kursor biasa untuk yang sudah dijawab */
-            pointer-events: none; /* Mengunci agar tidak bisa diklik lagi */
+            cursor: default;
+            pointer-events: none;
         }
 
         .progress-bar {
@@ -105,7 +122,7 @@
 <body>
 
     <div class="container">
-        <h2 style="color: var(--accent-color); letter-spacing: 3px;">PETA INDONESIA</h2>
+        <h2 style="color: var(--accent-color); letter-spacing: 3px; margin: 0;">PETA INDONESIA</h2>
         
         <div class="progress-bar">
             <div id="progress-inner"></div>
@@ -114,9 +131,7 @@
 
         <div id="soal">Memuat Peta...</div>
 
-        <div style="position: relative;">
-            <svg width="900" height="500"></svg>
-        </div>
+        <svg width="900" height="500"></svg>
     </div>
 
 <script>
@@ -130,6 +145,7 @@ const progressEl = document.getElementById("progress-inner");
 let provinces = [];
 let sisaProvinsi = [];
 let currentProv = null;
+let isLockout = false; // Mencegah klik saat animasi salah berlangsung
 
 d3.json("indonesia-38-provinces.topo.json").then(function(data){
     const objectName = Object.keys(data.objects)[0];
@@ -139,7 +155,6 @@ d3.json("indonesia-38-provinces.topo.json").then(function(data){
     const projection = d3.geoMercator().fitSize([width, height], geojson);
     const pathGenerator = d3.geoPath().projection(projection);
 
-    // Render Peta Awal
     svg.selectAll("path")
         .data(provinces)
         .enter()
@@ -147,20 +162,19 @@ d3.json("indonesia-38-provinces.topo.json").then(function(data){
         .attr("d", pathGenerator)
         .attr("stroke", "#1a1a2e")
         .attr("stroke-width", "0.5")
-        .attr("class", "unanswered") // Default semua belum dijawab
+        .attr("class", "unanswered")
         .on("click", handlePathClick);
 
     resetGame();
 });
 
 function handlePathClick(event, d) {
-    if(!currentProv) return;
+    if(!currentProv || isLockout) return;
 
-    // Cek jawaban
     if(d.properties.PROVINSI === currentProv.properties.PROVINSI){
-        // JAWABAN BENAR
+        // BENAR
         d3.select(this)
-            .attr("class", "answered") // KUNCI PROVINSI INI
+            .attr("class", "answered")
             .transition()
             .attr("fill", "var(--correct-color)");
 
@@ -170,9 +184,27 @@ function handlePathClick(event, d) {
 
         ambilSoalBaru();
     } else {
-        // JAWABAN SALAH
-        alert("Salah! 💀 Itu adalah " + d.properties.PROVINSI + ". Ulangi lagi!");
-        resetGame();
+        // SALAH - Feedback langsung di Game
+        isLockout = true;
+        
+        // Flash warna merah di provinsi yang salah diklik
+        d3.select(this)
+            .transition().duration(100)
+            .attr("fill", "var(--wrong-color)")
+            .transition().duration(500)
+            .attr("fill", "var(--base-prov-color)");
+
+        // Ubah teks soal jadi peringatan
+        soalEl.classList.add("text-wrong");
+        soalEl.innerHTML = `<div>SALAH! Itu adalah <b style="text-decoration:underline">${d.properties.PROVINSI}</b></div>
+                            <div style="font-size: 1rem; margin-top: 5px;">Mengulang dari awal...</div>`;
+
+        // Tunggu 1.5 detik lalu reset
+        setTimeout(() => {
+            soalEl.classList.remove("text-wrong");
+            isLockout = false;
+            resetGame();
+        }, 1500);
     }
 }
 
@@ -180,7 +212,6 @@ function ambilSoalBaru(){
     const total = provinces.length;
     const terjawab = total - sisaProvinsi.length;
     
-    // Update Stats & Progress
     statsEl.innerText = `Progres: ${terjawab} / ${total}`;
     progressEl.style.width = (terjawab / total * 100) + "%";
 
@@ -198,11 +229,10 @@ function ambilSoalBaru(){
 
 function resetGame(){
     sisaProvinsi = [...provinces];
-    // Reset visual peta
     svg.selectAll("path")
-        .attr("class", "unanswered") // Buka kunci semua
+        .attr("class", "unanswered")
         .transition().duration(500)
-        .attr("fill", "var(--base-prov-color)"); // Warna dasar yang lebih terang
+        .attr("fill", "var(--base-prov-color)");
     
     ambilSoalBaru();
 }
