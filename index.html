@@ -38,16 +38,17 @@
             position: relative;
         }
 
-        #soal {
-            font-size: 1.8rem;
-            margin: 15px 0;
-            min-height: 80px; /* Ditinggikan sedikit agar muat 2 baris teks */
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-direction: column;
-            transition: color 0.3s;
-        }
+#soal {
+    font-size: 1.8rem;
+    margin: 15px 0;
+    min-height: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: row; /* <--- GANTI INI dari 'column' ke 'row' */
+    gap: 10px; /* Tambahkan ini agar ada spasi antar elemen jika perlu */
+    transition: color 0.3s;
+}
 
         .text-wrong {
             color: var(--wrong-color) !important;
@@ -224,7 +225,7 @@ function ambilSoalBaru(){
 
     const randomIndex = Math.floor(Math.random() * sisaProvinsi.length);
     currentProv = sisaProvinsi[randomIndex];
-    soalEl.innerHTML = `Mana provinsi <span style="color: var(--accent-color)">${currentProv.properties.PROVINSI}</span>?`;
+    soalEl.innerHTML = `<div>Mana provinsi <span style="color: var(--accent-color)">${currentProv.properties.PROVINSI}</span>?</div>`;
 }
 
 function resetGame(){
