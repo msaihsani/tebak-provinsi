@@ -1,33 +1,19 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>Tebak Provinsi</title>
-  <script src="https://d3js.org/d3.v7.min.js"></script>
-  <script src="https://unpkg.com/topojson-client@3"></script>
-</head>
-<body>
-
-<h2>Tebak Provinsi Indonesia</h2>
-<p id="soal"></p>
-
-<svg width="800" height="600"></svg>
-
 <script>
 const width = 800;
 const height = 600;
-
 const svg = d3.select("svg");
-const projection = d3.geoMercator()
-    .fitSize([width, height], provinces);
-    .translate([width / 2, height / 2]);
-
-const path = d3.geoPath().projection(projection);
 
 d3.json("indonesia-38-provinces.topo.json").then(function(data) {
 
   const objectName = Object.keys(data.objects)[0];
-  const provinces = topojson.feature(data, data.objects[objectName]).features;
+  const geojson = topojson.feature(data, data.objects[objectName]);
+
+  const provinces = geojson.features;
+
+  const projection = d3.geoMercator()
+      .fitSize([width, height], geojson);
+
+  const path = d3.geoPath().projection(projection);
 
   const randomProv = provinces[Math.floor(Math.random() * provinces.length)];
   document.getElementById("soal").innerText =
@@ -49,8 +35,7 @@ d3.json("indonesia-38-provinces.topo.json").then(function(data) {
         }
     });
 
+}).catch(function(error){
+  console.error("Error:", error);
 });
 </script>
-
-</body>
-</html>
