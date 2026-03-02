@@ -43,9 +43,28 @@ d3.json("indonesia-38-provinces.topo.json")
 
   const path = d3.geoPath().projection(projection);
 
-  const randomProv = provinces[Math.floor(Math.random()*provinces.length)];
-  document.getElementById("soal").innerText =
-      "Klik provinsi: " + randomProv.properties.PROVINSI;
+  let sisaProvinsi = [...provinces];   // daftar yg belum dijawab
+  let currentProv = null;
+
+  function ambilSoalBaru(){
+      if(sisaProvinsi.length === 0){
+          document.getElementById("soal").innerText = 
+              "🎉 Semua provinsi selesai!";
+          return;
+      }
+
+      const randomIndex = Math.floor(Math.random() * sisaProvinsi.length);
+      currentProv = sisaProvinsi[randomIndex];
+
+      document.getElementById("soal").innerText =
+          "Klik provinsi: " + currentProv.properties.PROVINSI;
+  }
+
+  function resetGame(){
+      sisaProvinsi = [...provinces];
+      svg.selectAll("path").attr("fill", "#dcdcdc");
+      ambilSoalBaru();
+  }
 
   svg.selectAll("path")
     .data(provinces)
@@ -55,13 +74,28 @@ d3.json("indonesia-38-provinces.topo.json")
     .attr("fill", "#dcdcdc")
     .attr("stroke", "#333")
     .on("click", function(event, d){
-        if(d.properties.PROVINSI === randomProv.properties.PROVINSI){
-            alert("Benar! 🎉");
+
+        if(!currentProv) return;
+
+        if(d.properties.PROVINSI === currentProv.properties.PROVINSI){
+
             d3.select(this).attr("fill", "green");
+
+            // hapus dari daftar soal
+            sisaProvinsi = sisaProvinsi.filter(p =>
+                p.properties.PROVINSI !== currentProv.properties.PROVINSI
+            );
+
+            ambilSoalBaru();
+
         } else {
-            alert("Salah 😅");
+            alert("Salah 😅 Ulang dari awal!");
+            resetGame();
         }
+
     });
+
+  ambilSoalBaru();
 
 })
 .catch(function(error){
